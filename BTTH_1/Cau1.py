@@ -2,6 +2,7 @@ from cmath import nan
 import pandas as pd
 import numpy as np
 import math
+from matplotlib.ticker import PercentFormatter
 import matplotlib.pyplot as plt
 
 def read_csv(path):
@@ -46,7 +47,6 @@ def first_look_data(df):
 
 
     #relationship between embarked, pclass, survived
-    
     percent_list = []
     for it in df['pclass'].unique():
         pclass_df = df[df['pclass'] == it]
@@ -59,6 +59,31 @@ def first_look_data(df):
     plt.xticks(df['pclass'].unique())
     plt.ylabel('servived percent')
     plt.xlabel('pclass')
+
+    
+    percent_list = []
+    unique_embarked_listdff = [x for x in df['embarked'].unique() if str(x) != 'nan']
+    for it in unique_embarked_listdff:
+        embarked_df = df[df['embarked'] == it]
+        embarked_percent = len(embarked_df[embarked_df['survived'] == 1].embarked.dropna()) / len(embarked_df) * 100
+        percent_list.append(embarked_percent)
+    
+    fig = plt.figure()  
+    fig.suptitle('Embarked', fontsize=20)
+    plt.bar(unique_embarked_listdff, percent_list)
+    plt.xticks(unique_embarked_listdff)
+    plt.ylabel('survived percent')
+    plt.xlabel('embarked')
+
+    # Have family
+
+    fig = plt.figure()
+    fig.suptitle('Family', fontsize=20)
+    plt.hist(df[df['survived'] == 1].sibsp.dropna() + df[df['survived'] == 1].parch.dropna(), bins = 18, alpha = 0.8, label='survived', color='blue', edgecolor = 'black')
+    plt.hist(df[df['survived'] == 0].sibsp.dropna() + df[df['survived'] == 0].parch.dropna(), bins = 45, alpha = 0.7, label='not survived', color='red', edgecolor = 'black')
+    plt.ylabel('Count')
+    plt.xlabel('Family')
+    plt.legend()
     plt.show()  
 
 def min_max_normalization(df): 
@@ -71,11 +96,14 @@ def preprocess_data(df, drop_list):
     #drop trash column
     df = df.drop(columns = drop_list)
     df.reset_index(drop=True, inplace=True)
-    #Fill missing age row with mean
+    #Fill missing with mean (age column)
     mean = df['age'].sum() / len(df)
     df['age'] = df['age'].apply(lambda x: mean if str(x) == "nan" else x)
-    
-    #Reduce noise with binning
+
+    # Fill missing with mode (embarked)
+    embarked_mode_value = df['embarked'].mode()
+    df['embarked'].apply(lambda x: embarked_mode_value if (str(x) == "nan" or str(x) == "") else x)
+    #Reduce noise with binning (age column)
     binning_num = 8
     binning_batch = int(math.ceil((len(df) / binning_num))) + 1
     df = df.sort_values('age')
@@ -92,14 +120,28 @@ def preprocess_data(df, drop_list):
             df['age'].iloc[id3] = mean
             df['age_name'].iloc[id3] = "age" + str(int(mean/ 10) * 10)
     
-    #max-min normalization
+    # Convert male, female to 0, 1 (sex column)
+    sex_convert_dict = {'male':1, 'female':0}
+    for row in [df]:
+        row['sex'] = row['sex'].map(sex_convert_dict)
+
+    # Convert S, C, Q to 0, 1, 2 (embarked column)
+    embarked_convert_dict = {'Q':2, 'C':1, 'S':0}
+    for row in [df]:
+        row['embarked'] = row['embarked'].map(embarked_convert_dict)
+
+    # Create new column named age_class
+    for row in [df]:
+        row['age_class'] = row['age'] * row['pclass']
+
+    #max-min normalization (fare column)
     df = min_max_normalization(df)
     return df
 
 def main():
     df = read_csv('new_data/titanic.csv')
     first_look_data(df)
-    df = preprocess_data(df, ['boat','body','home.dest','cabin'])
-    write_csv('processed_data/titanic.csv',df)
+    df = preprocess_data(df, ['ticket','boat','body','home.dest','cabin'])
+    write_csv('processed_data/titanic.csv',df)          
 
 main()
